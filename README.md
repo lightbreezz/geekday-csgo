@@ -99,6 +99,14 @@
    npm run dev
    ```
 
+## 🔌 Integration (OpenClaw / MCP)
+
+The project includes resources for integrating with external AI agent platforms like **OpenClaw** or **OpenAI GPTs**.
+
+- **OpenAPI Specification**: See [`backend/docs/openclaw/openapi.json`](backend/docs/openclaw/openapi.json)
+- **Integration Guide**: See [`backend/docs/openclaw/README.md`](backend/docs/openclaw/README.md)
+- **Trae Skill**: Located at `.trae/skills/chaoshan-travel/SKILL.md`
+
 ## 📂 Project Structure
 
 ```
