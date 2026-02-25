@@ -244,7 +244,10 @@
         </div>
       </div>
 
-      <button class="neon-btn submit-btn" type="submit">保存我的信息</button>
+      <div class="form-actions">
+        <button class="neon-btn submit-btn" type="submit">保存我的信息</button>
+        <button class="neon-btn secondary submit-btn" type="button" @click="exportProfile">导出档案</button>
+      </div>
       <p v-if="saved" class="save-toast">✨ 信息已更新，Agent 将记住你的偏好！</p>
     </form>
   </div>
@@ -506,6 +509,20 @@ function saveProfile() {
   setTimeout(() => saved.value = false, 3000);
 }
 
+function exportProfile() {
+  // Save first
+  saveProfile();
+  
+  // Create downloadable file
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(profile, null, 2));
+  const downloadAnchorNode = document.createElement('a');
+  downloadAnchorNode.setAttribute("href", dataStr);
+  downloadAnchorNode.setAttribute("download", `chaoyun_profile_${new Date().toISOString().slice(0,10)}.json`);
+  document.body.appendChild(downloadAnchorNode); // required for firefox
+  downloadAnchorNode.click();
+  downloadAnchorNode.remove();
+}
+
 onMounted(() => {
   const cached = localStorage.getItem("chaoyun_profile");
   if (cached) {
@@ -619,11 +636,16 @@ input:focus, select:focus, textarea:focus {
 }
 
 .submit-btn {
-  margin-top: 20px;
   width: 100%;
   justify-content: center;
   font-size: 1.1rem;
   padding: 14px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 20px;
 }
 
 .save-toast {

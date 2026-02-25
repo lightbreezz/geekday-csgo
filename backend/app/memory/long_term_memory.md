@@ -5,7 +5,7 @@
 - departure_city: 深圳
 - home_city: 深圳
 - preferences: 吃饭
-- food_preferences: 牛肉火锅, 卤鹅, 功夫茶
+- food_preferences: 牛肉火锅, 卤鹅, 功夫茶, 深夜大排档
 - budget_level: 中等
 - note: 海鲜过敏
 - companions: [{"name": "潮大实", "relation": "父母", "ageGroup": "中年 (36-60)", "healthCondition": "海鲜过敏", "preferences": []}, {"name": "小明", "relation": "子女", "ageGroup": "儿童 (0-12)", "healthCondition": "3岁，比较小", "preferences": ["清淡饮食"]}]
