@@ -69,8 +69,26 @@
   </div>
 
   <form class="chat-input-row" @submit.prevent="submitChat">
-        <input v-model="input" placeholder="比如：帮我规划一个潮州两日文化游" />
-        <button class="neon-btn" type="submit" :disabled="loading || !input.trim()">
+        <div class="chat-actions-left">
+          <button type="button" class="icon-btn" title="上传文件" @click="triggerFileUpload">
+            📎
+          </button>
+          <input 
+            type="file" 
+            ref="fileInput" 
+            style="display: none" 
+            accept=".txt,.md,.pdf,.json" 
+            @change="handleFileSelect"
+          />
+        </div>
+        <div class="input-wrapper">
+          <input v-model="input" placeholder="比如：帮我规划一个潮州两日文化游" />
+          <div v-if="tempFile" class="file-preview">
+            📄 {{ tempFile.name }} 
+            <span class="remove-file" @click="removeTempFile">×</span>
+          </div>
+        </div>
+        <button class="neon-btn" type="submit" :disabled="loading || (!input.trim() && !tempFile)">
           {{ loading ? "发送中..." : "发送" }}
         </button>
       </form>
@@ -97,6 +115,8 @@ const mcpServices = ref<McpServiceItem[]>([]);
 const showMcpDialog = ref(false);
 const selectedMcpService = ref<McpServiceItem | null>(null);
 const mcpParams = ref<Record<string, string>>({});
+const fileInput = ref<HTMLInputElement | null>(null);
+const tempFile = ref<{ name: string; content: string } | null>(null);
 
 const messages = ref<ChatMessage[]>([
   {
@@ -147,6 +167,34 @@ function submitMcpParams() {
   closeMcpDialog();
 }
 
+function triggerFileUpload() {
+  fileInput.value?.click();
+}
+
+function handleFileSelect(event: Event) {
+  const inputEl = event.target as HTMLInputElement;
+  if (inputEl.files && inputEl.files[0]) {
+    const file = inputEl.files[0];
+    if (file.size > 2 * 1024 * 1024) {
+      alert("文件过大 (超过 2MB)");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      tempFile.value = {
+        name: file.name,
+        content: e.target?.result as string
+      };
+    };
+    reader.readAsText(file);
+  }
+}
+
+function removeTempFile() {
+  tempFile.value = null;
+  if (fileInput.value) fileInput.value.value = "";
+}
+
 onMounted(async () => {
   try {
     mcpServices.value = await fetchMcpServices();
@@ -172,11 +220,19 @@ function parseContent(content: string) {
 
 async function submitChat() {
   const text = input.value.trim();
-  if (!text || loading.value) return;
+  if ((!text && !tempFile.value) || loading.value) return;
 
-  const userMsg: ChatMessage = { role: "user", content: text };
+  let content = text;
+  if (tempFile.value) {
+    content += `\n\n[用户上传文件: ${tempFile.value.name}]\n${tempFile.value.content.slice(0, 3000)}`;
+    if (tempFile.value.content.length > 3000) content += "\n...(已截断)";
+  }
+
+  const userMsg: ChatMessage = { role: "user", content: content };
   messages.value.push(userMsg);
   input.value = "";
+  tempFile.value = null;
+  if (fileInput.value) fileInput.value.value = "";
   loading.value = true;
 
   let selectedModel = "";
@@ -226,7 +282,7 @@ async function submitChat() {
     }
 
     const resp = await sendChat({
-      message: text,
+      message: content,
       history: messages.value.slice(-12),
       model: selectedModel || undefined,
       user_id: "default",
@@ -412,5 +468,74 @@ async function submitChat() {
 @keyframes slide-up {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+.chat-input-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.chat-actions-left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 4px;
+}
+
+.icon-btn {
+  background: none;
+  border: 1px solid rgba(141, 161, 255, 0.3);
+  border-radius: 8px;
+  color: var(--text-sub);
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: all 0.2s;
+}
+
+.icon-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(78, 245, 214, 0.1);
+}
+
+.input-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.file-preview {
+  font-size: 0.85rem;
+  color: var(--text-main);
+  background: rgba(78, 245, 214, 0.15);
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+}
+
+.remove-file {
+  cursor: pointer;
+  color: #ff6b6b;
+  font-weight: bold;
+}
+
+.chat-input-row input {
+  width: 100%;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(141, 161, 255, 0.3);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 1rem;
 }
 </style>
