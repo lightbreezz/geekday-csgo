@@ -76,7 +76,6 @@ import PlanHistory from "../components/PlanHistory.vue";
 import {
   createPlan,
   fetchFakeEvents,
-  fetchWeather,
   type FakeSignalEvent,
   type PlanPayload,
   type PlanResult,
@@ -107,8 +106,6 @@ const crowdAlert = reactive({
 });
 
 const pendingFakeEvents = ref<FakeSignalEvent[]>([]);
-const lastWeatherCondition = ref("");
-let weatherTimer: number | undefined;
 let fakeEventTimer: number | undefined;
 
 onMounted(() => {
@@ -121,22 +118,12 @@ onMounted(() => {
     }
   }
   
-  // Check test mode
-  const isTestMode = localStorage.getItem("chaoyun_test_mode") === "true";
-  
-  // Start polling
-  // Normal mode: 10 minutes (600,000 ms)
-  // Test mode: 60 seconds (60,000 ms) - to ensure we catch the minute change
-  const interval = isTestMode ? 60000 : 600000;
-  weatherTimer = setInterval(checkWeather, interval);
-
   // Fake signal events are used for rapid manual demo/testing.
   fakeEventTimer = setInterval(consumeFakeEvents, 3000);
   consumeFakeEvents();
 });
 
 onUnmounted(() => {
-  if (weatherTimer) clearInterval(weatherTimer);
   if (fakeEventTimer) clearInterval(fakeEventTimer);
 });
 
@@ -175,68 +162,6 @@ async function consumeFakeEvents() {
   }
 }
 
-async function checkWeather() {
-  // Only check if we have an active plan/result
-  if (!result.value || !activePlanId.value) return;
-  
-  // Find current plan payload to get destination
-  const currentPlan = history.value.find(p => p.id === activePlanId.value);
-  if (!currentPlan) return;
-  
-  const dest = currentPlan.payload.destination;
-  const days = currentPlan.payload.days || 1;
-  
-  try {
-    const weatherData = await fetchWeather(dest, days);
-    // Assuming weatherData returns { forecast: [{day: 1, condition: "..."}] }
-    const currentForecast = weatherData.forecast || [];
-    
-    // Parse baseline
-    let baseline = [];
-    try {
-      baseline = JSON.parse(lastWeatherCondition.value || "[]");
-    } catch {
-      baseline = [];
-    }
-    
-    // If we haven't stored initial weather yet, just store it
-    if (baseline.length === 0) {
-      lastWeatherCondition.value = JSON.stringify(currentForecast);
-      return;
-    }
-    
-    // Compare each day
-    let changedDay = null;
-    let oldVal = "";
-    let newVal = "";
-    
-    for (let i = 0; i < currentForecast.length; i++) {
-      const dayNew = currentForecast[i];
-      const dayOld = baseline.find((d: any) => d.day === dayNew.day);
-      
-      if (dayOld && dayOld.condition !== dayNew.condition) {
-        changedDay = dayNew.day;
-        oldVal = dayOld.condition;
-        newVal = dayNew.condition;
-        break; // Alert on first change found
-      }
-    }
-    
-    if (changedDay !== null) {
-      weatherAlert.destination = dest;
-      weatherAlert.dayIndex = changedDay;
-      weatherAlert.oldCondition = oldVal;
-      weatherAlert.newCondition = newVal;
-      weatherAlert.show = true;
-      
-      // Update last known condition to current full forecast so we don't alert again for same change
-      lastWeatherCondition.value = JSON.stringify(currentForecast);
-    }
-  } catch (e) {
-    console.error("Weather check failed", e);
-  }
-}
-
 function ignoreWeatherChange() {
   weatherAlert.show = false;
   showNextFakeEvent();
@@ -251,8 +176,19 @@ function regeneratePlan() {
   weatherAlert.show = false;
   const currentPlan = history.value.find(p => p.id === activePlanId.value);
   if (currentPlan) {
-    // Re-submit the same payload
-    onSubmit(currentPlan.payload);
+    // Add weather context to constraints
+    const newPayload = { ...currentPlan.payload };
+    const weatherInfo = `监测到第 ${weatherAlert.dayIndex} 天天气变为 ${weatherAlert.newCondition} (原为 ${weatherAlert.oldCondition})`;
+    const instruction = "请只重新安排受天气影响的行程部分，其他行程尽量保持不变，灵活调整。";
+    
+    newPayload.constraints = [
+      ...(newPayload.constraints || []),
+      weatherInfo,
+      instruction
+    ];
+    
+    // Re-submit
+    onSubmit(newPayload);
   }
 }
 
@@ -266,21 +202,6 @@ function savePlan(payload: PlanPayload, res: PlanResult) {
   history.value.unshift(newPlan);
   localStorage.setItem("chaoyun_plans", JSON.stringify(history.value));
   activePlanId.value = newPlan.id;
-  
-  // Initialize weather baseline for the new plan
-  // We should ideally fetch it now or extract from plan result if available
-  // For now, we'll let the next poll or immediate check handle it
-  // Let's do an immediate check to set baseline without alerting
-  updateWeatherBaseline(payload.destination, payload.days);
-}
-
-async function updateWeatherBaseline(city: string, days: number = 1) {
-  try {
-    const data = await fetchWeather(city, days);
-    lastWeatherCondition.value = JSON.stringify(data.forecast || []);
-  } catch {
-    lastWeatherCondition.value = "";
-  }
 }
 
 function selectPlan(plan: SavedPlan) {
@@ -288,9 +209,6 @@ function selectPlan(plan: SavedPlan) {
   activePlanId.value = plan.id;
   stage.value = "final";
   window.scrollTo({ top: 0, behavior: "smooth" });
-  
-  // Reset weather baseline for selected plan
-  updateWeatherBaseline(plan.payload.destination, plan.payload.days);
 }
 
 function deletePlan(id: string) {
