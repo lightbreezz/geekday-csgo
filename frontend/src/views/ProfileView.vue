@@ -214,6 +214,36 @@
         </label>
       </div>
 
+      <!-- 知识库上传 -->
+      <div class="form-section">
+        <h3>个人知识库</h3>
+        <p class="section-desc">上传你的行程单、攻略文档或偏好记录（支持 .txt, .md, .pdf），AI 将在对话中参考这些内容。</p>
+        
+        <div class="upload-box" @click="triggerFileUpload" @drop.prevent="handleDrop" @dragover.prevent>
+          <input 
+            type="file" 
+            ref="fileInput" 
+            multiple 
+            accept=".txt,.md,.pdf,.json" 
+            style="display: none" 
+            @change="handleFileSelect"
+          />
+          <div class="upload-icon">📂</div>
+          <p>点击或拖拽文件到此处上传</p>
+        </div>
+
+        <div class="file-list" v-if="uploadedFiles.length > 0">
+          <div v-for="(file, idx) in uploadedFiles" :key="idx" class="file-item">
+            <span class="file-icon">📄</span>
+            <div class="file-info">
+              <span class="file-name">{{ file.name }}</span>
+              <span class="file-size">{{ formatSize(file.size) }}</span>
+            </div>
+            <button type="button" class="delete-btn" @click="removeFile(idx)">×</button>
+          </div>
+        </div>
+      </div>
+
       <button class="neon-btn submit-btn" type="submit">保存我的信息</button>
       <p v-if="saved" class="save-toast">✨ 信息已更新，Agent 将记住你的偏好！</p>
     </form>
@@ -246,6 +276,7 @@ type ProfileData = {
   note: string;
   companions: Companion[];
   travelDates: string[];
+  knowledgeBase: UploadedFile[];
 };
 
 const profile = reactive<ProfileData>({
@@ -260,6 +291,7 @@ const profile = reactive<ProfileData>({
   note: "",
   companions: [],
   travelDates: [],
+  knowledgeBase: [],
 });
 
 // Calendar Logic
@@ -330,6 +362,7 @@ function toggleDate(dateStr: string) {
 
 const isEditingCompanion = ref(false);
 const editingIndex = ref(-1);
+const fileInput = ref<HTMLInputElement | null>(null);
 
 const currentCompanion = reactive({
   name: "",
@@ -339,7 +372,75 @@ const currentCompanion = reactive({
   prefInput: "",
 });
 
+// Knowledge Base
+type UploadedFile = {
+  name: string;
+  size: number;
+  content: string; // base64 or text
+  type: string;
+};
+const uploadedFiles = ref<UploadedFile[]>([]);
+
 const saved = ref(false);
+
+function triggerFileUpload() {
+  fileInput.value?.click();
+}
+
+function handleFileSelect(event: Event) {
+  const input = event.target as HTMLInputElement;
+  if (input.files) {
+    processFiles(Array.from(input.files));
+  }
+}
+
+function handleDrop(event: DragEvent) {
+  if (event.dataTransfer?.files) {
+    processFiles(Array.from(event.dataTransfer.files));
+  }
+}
+
+function processFiles(files: File[]) {
+  files.forEach(file => {
+    // Check dupe
+    if (uploadedFiles.value.some(f => f.name === file.name)) return;
+    
+    // Check size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      alert(`文件 ${file.name} 太大 (超过 2MB)`);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      uploadedFiles.value.push({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        content: e.target?.result as string
+      });
+    };
+    // For simplicity, read as text for text files, dataURL for others?
+    // Let's stick to text for now as "knowledge" usually implies text
+    if (file.type.includes('text') || file.name.endsWith('.md') || file.name.endsWith('.json')) {
+      reader.readAsText(file);
+    } else {
+      // PDF etc might need backend parsing, but for now we just store name/ref
+      // or warn user.
+      alert("目前仅支持文本类文件 (.txt, .md, .json) 内容读取");
+    }
+  });
+}
+
+function removeFile(idx: number) {
+  uploadedFiles.value.splice(idx, 1);
+}
+
+function formatSize(bytes: number) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+}
 
 function resetCompanionForm() {
   currentCompanion.name = "";
@@ -399,6 +500,7 @@ function removeCompanion(idx: number) {
 }
 
 function saveProfile() {
+  profile.knowledgeBase = uploadedFiles.value;
   localStorage.setItem("chaoyun_profile", JSON.stringify(profile));
   saved.value = true;
   setTimeout(() => saved.value = false, 3000);
@@ -420,6 +522,8 @@ onMounted(() => {
       profile.note = parsed.note ?? "";
       profile.companions = Array.isArray(parsed.companions) ? parsed.companions : [];
       profile.travelDates = Array.isArray(parsed.travelDates) ? parsed.travelDates : [];
+      profile.knowledgeBase = Array.isArray(parsed.knowledgeBase) ? parsed.knowledgeBase : [];
+      uploadedFiles.value = profile.knowledgeBase;
     } catch (e) {
       console.error("Failed to parse profile", e);
     }
@@ -637,6 +741,63 @@ input:focus, select:focus, textarea:focus {
   margin: -10px 0 16px;
   color: var(--text-sub);
   font-size: 0.9rem;
+}
+
+.upload-box {
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px dashed rgba(141, 161, 255, 0.3);
+  border-radius: 8px;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.upload-box:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--accent);
+}
+
+.upload-icon {
+  font-size: 2rem;
+  margin-bottom: 8px;
+}
+
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 10px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.file-icon {
+  font-size: 1.2rem;
+}
+
+.file-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.file-name {
+  font-size: 0.95rem;
+  color: var(--text-main);
+}
+
+.file-size {
+  font-size: 0.8rem;
+  color: var(--text-sub);
 }
 
 .calendar-wrapper {

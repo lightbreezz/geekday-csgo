@@ -195,6 +195,7 @@ async function submitChat() {
       budget_level?: string;
       note?: string;
       companions?: any[];
+      knowledge_base?: any[];
     } = {};
     try {
       const cached = localStorage.getItem("chaoyun_profile");
@@ -207,6 +208,7 @@ async function submitChat() {
           budgetLevel?: string;
           note?: string;
           companions?: any[];
+          knowledgeBase?: any[];
         };
         profilePayload = {
           departure_city: profile.departureCity ?? "",
@@ -216,6 +218,7 @@ async function submitChat() {
           budget_level: profile.budgetLevel ?? "",
           note: profile.note ?? "",
           companions: profile.companions ?? [],
+          knowledge_base: profile.knowledgeBase ?? [],
         };
       }
     } catch {

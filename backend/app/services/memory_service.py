@@ -49,6 +49,7 @@ def _sync_long_term_markdown(data: dict[str, Any]) -> None:
                 f"- budget_level: {profile.get('budget_level', '')}",
                 f"- note: {profile.get('note', '')}",
                 f"- companions: {json.dumps(profile.get('companions', []), ensure_ascii=False)}",
+                f"- knowledge_base_files: {', '.join([f['name'] for f in profile.get('knowledge_base', [])])}",
                 "",
             ]
         )
@@ -98,6 +99,7 @@ def update_user_profile(user_id: str, profile_data: dict[str, Any]) -> dict[str,
         "budget_level": profile_data.get("budget_level") or current.get("budget_level", ""),
         "note": profile_data.get("note") or current.get("note", ""),
         "companions": profile_data.get("companions") or current.get("companions", []),
+        "knowledge_base": profile_data.get("knowledge_base") or current.get("knowledge_base", []),
         "updated_at": _now_iso(),
     }
     profiles[user_id] = merged

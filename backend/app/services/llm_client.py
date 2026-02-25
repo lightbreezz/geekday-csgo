@@ -103,6 +103,16 @@ class LLMClient:
         mid_term_json = json.dumps(mid_term, ensure_ascii=False)
         profile_json = json.dumps(profile, ensure_ascii=False)
         rules_text = "；".join(str(x) for x in culture_rules[:8])
+        
+        # Knowledge Base Context
+        kb_files = profile.get("knowledge_base", [])
+        kb_context = ""
+        if kb_files:
+            kb_context = "\n[用户知识库上下文]\n"
+            for f in kb_files:
+                # Limit content length per file to avoid context overflow
+                content_preview = f.get("content", "")[:2000] 
+                kb_context += f"文件《{f.get('name')}》内容摘要：\n{content_preview}\n...\n"
 
         messages: list[dict[str, str]] = [
             {
@@ -114,6 +124,7 @@ class LLMClient:
                     "短期记忆（最近3轮原始对话，保留细节）、"
                     "中期记忆（已确认行程片段JSON）、"
                     "长期记忆（用户偏好与文化规则文档）。"
+                    "此外，用户还上传了个人知识库文件，请参考其中的信息进行回答。"
                     "回答时优先保持与三层记忆一致。"
                 ),
             },
@@ -122,7 +133,8 @@ class LLMClient:
                 "content": (
                     f"[长期记忆-用户偏好]{profile_json}\n"
                     f"[长期记忆-文化规则]{rules_text}\n"
-                    f"[中期记忆-已确认行程JSON]{mid_term_json}"
+                    f"[中期记忆-已确认行程JSON]{mid_term_json}\n"
+                    f"{kb_context}"
                 ),
             },
         ]
